@@ -163,6 +163,7 @@ Recreate pod:
 
 ```bash
 kubectl apply -f pod.yaml
+kubectl label pod volume-pod app=frontend
 ```
 
 ---
