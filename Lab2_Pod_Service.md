@@ -97,7 +97,7 @@ kubectl get svc
 kubectl describe svc httpd-svc
 kubectl get ep
 ```
-
+---
 ### Task 3: Modify Service to NodePort
 
 #### Update the Service YAML:
@@ -119,15 +119,7 @@ kubectl apply -f httpd-svc.yaml
 ```bash
 kubectl describe svc httpd-svc
 ```
-
-#### Test Connectivity:
-1. Use the External IP and NodePort:
-   ```bash
-   curl <External_IP>:<NodePort>
-   ```
-
 ---
-
 ### Task 4: Modify Service to LoadBalancer
 
 #### Update the Service YAML:
@@ -150,15 +142,7 @@ kubectl apply -f httpd-svc.yaml
 kubectl get svc
 kubectl describe svc httpd-svc
 ```
-
-#### Test Connectivity:
-1. Access the service using the LoadBalancer DNS:
-   ```bash
-   curl <external_IP_of_svc:svc_port>
-   ```
-
 ---
-
 ### Task 5: Delete and Recreate Pod
 
 #### Delete the Existing Pod:
