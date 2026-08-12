@@ -22,6 +22,36 @@ This installs or updates the Metrics Server components in the cluster.
 
 ---
 
+### **Step 2: Check the Metrics Server Deployment**
+
+```bash
+kubectl get deployment -n kube-system
+```
+
+This displays the Deployments running in the `kube-system` namespace.
+
+---
+
+### **Step 3: Check the Metrics Server Pod**
+
+```bash
+kubectl get pods -n kube-system | grep metrics-server
+```
+
+This displays the Metrics Server Pod and its current status.
+
+---
+
+### **Step 4: Check Pod Metrics**
+
+```bash
+kubectl top pods
+```
+
+This displays the current CPU and memory usage of the Pods.
+
+---
+
 ## **Task 2: Create a Deployment and Horizontal Pod Autoscaler**
 
 ### **Step 1: Create the Deployment manifest**
@@ -216,7 +246,6 @@ This removes the NGINX Deployment and its Pods.
 - **Scale-out:** More Pods are created when CPU utilization increases.
 - **Scale-in:** Pods can be reduced when CPU utilization decreases.
 
----
 ---
 
 ## **End of Lab**
