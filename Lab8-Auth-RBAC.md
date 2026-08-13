@@ -170,14 +170,76 @@ exit
 ```
 
 Now edit the role to update the permissions.
+
+Open the existing `role.yaml` file:
 ```
-vi role.yaml 
+vi role.yaml
 ```
-Add the below permissions
+
+### Before the Update
+
+The Role currently contains only the `list` permission:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role1
+  namespace: ns1
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
 ```
- - create
- - update
+
+### Add `create` and `update` Permissions
+
+Add the following two entries below `- list`:
+
+```yaml
+  - create
+  - update
 ```
+
+The updated `role.yaml` should look like:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role1
+  namespace: ns1
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - create
+  - update
+```
+
+### What Changed?
+
+- `list` - Allows listing Pods.
+- `create` - Allows creating Pods.
+- `update` - Allows updating existing Pods.
+
+The important change is in the `verbs` section:
+
+```yaml
+verbs:
+- list
+- create
+- update
+```
+
+This shows how to update an existing Role by adding additional permissions.
+
 ![image](https://github.com/user-attachments/assets/ca975b7c-3b23-48c1-91f5-d000772c5c10)
 
 Replace the role
