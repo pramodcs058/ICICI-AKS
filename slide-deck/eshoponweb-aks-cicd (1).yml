@@ -1,0 +1,183 @@
+name: eShopOnWeb Build Test and Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  RESOURCE-GROUP: aks-labs
+  AKS-CLUSTER-NAME: psk8-new-ps-new
+  ACR-NAME: akslabacr2026
+  IMAGE-NAME: eshoponweb
+  IMAGE-TAG: ${{ github.sha }}
+
+jobs:
+  buildandtest:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. Checkout source code
+      # ---------------------------------------------------------
+      - name: Checkout source code
+        uses: actions/checkout@v5
+
+      # ---------------------------------------------------------
+      # 2. Setup .NET
+      # ---------------------------------------------------------
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      # ---------------------------------------------------------
+      # 3. Build application
+      # ---------------------------------------------------------
+      - name: Build with dotnet
+        run: dotnet build ./eShopOnWeb.sln --configuration Release
+
+      # ---------------------------------------------------------
+      # 4. Run tests
+      # ---------------------------------------------------------
+      - name: Test with dotnet
+        run: dotnet test ./eShopOnWeb.sln --configuration Release
+
+      # ---------------------------------------------------------
+      # 5. Create Dockerfile
+      # ---------------------------------------------------------
+      - name: Create Dockerfile
+        run: |
+          cat > Dockerfile <<'EOF'
+          FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+
+          WORKDIR /src
+
+          COPY . .
+
+          RUN dotnet restore ./eShopOnWeb.sln
+
+          RUN dotnet publish ./src/Web/Web.csproj \
+              -c Release \
+              -o /app/publish \
+              /p:UseAppHost=false
+
+
+          FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+
+          WORKDIR /app
+
+          COPY --from=build /app/publish .
+
+          EXPOSE 8080
+
+          ENV ASPNETCORE_URLS=http://+:8080
+
+          ENTRYPOINT ["dotnet", "Web.dll"]
+          EOF
+
+      # ---------------------------------------------------------
+      # 6. Login to Azure
+      # ---------------------------------------------------------
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ---------------------------------------------------------
+      # 7. Build Docker image and push to ACR
+      # ---------------------------------------------------------
+      - name: Build and push image to ACR
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az acr build \
+              --registry ${{ env.ACR-NAME }} \
+              --image ${{ env.IMAGE-NAME }}:${{ env.IMAGE-TAG }} \
+              --file Dockerfile \
+              .
+
+      # ---------------------------------------------------------
+      # 8. Create Kubernetes manifest
+      # ---------------------------------------------------------
+      - name: Create Kubernetes deployment manifest
+        run: |
+          mkdir -p k8s
+
+          cat > k8s/eshoponweb.yaml <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: eshoponweb
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: eshoponweb
+            template:
+              metadata:
+                labels:
+                  app: eshoponweb
+              spec:
+                containers:
+                  - name: eshoponweb
+                    image: ${{ env.ACR-NAME }}.azurecr.io/${{ env.IMAGE-NAME }}:${{ env.IMAGE-TAG }}
+                    ports:
+                      - containerPort: 8080
+                    env:
+                      - name: ASPNETCORE_ENVIRONMENT
+                        value: "Docker"
+                      - name: ASPNETCORE_URLS
+                        value: "http://+:8080"
+                      - name: baseUrls__webBase
+                        value: "http://localhost:8080/"
+                      - name: baseUrls__apiBase
+                        value: "http://localhost:8080/api/"
+                      - name: UseOnlyInMemoryDatabase
+                        value: "true"
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: eshoponweb-service
+          spec:
+            type: LoadBalancer
+            selector:
+              app: eshoponweb
+            ports:
+              - port: 80
+                targetPort: 8080
+          EOF
+
+      # ---------------------------------------------------------
+      # 9. Connect to AKS
+      # ---------------------------------------------------------
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.RESOURCE-GROUP }}
+          cluster-name: ${{ env.AKS-CLUSTER-NAME }}
+
+      # ---------------------------------------------------------
+      # 10. Deploy application to AKS
+      # ---------------------------------------------------------
+      - name: Deploy application to AKS
+        uses: Azure/k8s-deploy@v5
+        with:
+          namespace: default
+          manifests: |
+            k8s/eshoponweb.yaml
+          images: |
+            ${{ env.ACR-NAME }}.azurecr.io/${{ env.IMAGE-NAME }}:${{ env.IMAGE-TAG }}
+          pull-images: false
+
+      # ---------------------------------------------------------
+      # 11. Verify deployment
+      # ---------------------------------------------------------
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/eshoponweb --timeout=180s
+          kubectl get pods
+          kubectl get service eshoponweb-service
